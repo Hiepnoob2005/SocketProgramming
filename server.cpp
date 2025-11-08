@@ -223,22 +223,22 @@ public:
     }
     
     // Function 3: Start an application
-    void handleStartApp(const char* appPath) {
+void handleStartApp(const char* appPath) {
         Packet response;
         response.command = CMD_START_APP;
         std::string result;
         
 #ifdef _WIN32
-        STARTUPINFOA si = {0};
-        PROCESS_INFORMATION pi = {0};
-        si.cb = sizeof(si);
+        // Thêm "start " để nó chạy ở chế độ không đồng bộ (không khóa server)
+        // và dùng " " để xử lý đường dẫn có dấu cách
+        std::string cmd = "start \"\" \"" + std::string(appPath) + "\"";
         
-        if (CreateProcessA(NULL, (LPSTR)appPath, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
+        int ret = system(cmd.c_str()); // Dùng system()
+        
+        if (ret == 0) {
             result = "Application started successfully";
         } else {
-            result = "Failed to start application";
+            result = "Failed to start application (check path?)";
         }
 #else
         std::string cmd = std::string(appPath) + " &";
@@ -250,7 +250,6 @@ public:
         response.dataSize = result.length();
         sendPacket(clientSocket, response);
     }
-    
     // Function 4: List processes (Task Manager)
     void handleListProcesses() {
         Packet response;
