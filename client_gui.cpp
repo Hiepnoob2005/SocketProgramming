@@ -349,7 +349,7 @@ file << "}\n";
             return "Failed to receive response";
         }
         
-        return std::string(response.data);
+        return std::string(response.data, response.dataSize);
     }
     
     void stop() {

