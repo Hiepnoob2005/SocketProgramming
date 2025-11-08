@@ -1,0 +1,7 @@
+# Bỏ qua các file build và thực thi
+*.exe
+*.o
+*.obj
+
+# Bỏ qua file cài đặt của VSCode (nếu có)
+.vscode/
