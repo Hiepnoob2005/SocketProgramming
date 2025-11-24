@@ -2,112 +2,395 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Remote Control Panel</title>
+<title>Remote Control Panel (WebSocket)</title>
 <style>
-body { font-family: Arial; padding: 20px; background: #f0f0f0; }
-.container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
-h1 { color: #333; text-align: center; }
-.btn-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 20px 0; }
-button { padding: 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
-button:hover { background: #45a049; }
-button.danger { background: #f44336; }
-button.danger:hover { background: #da190b; }
-.input-group { margin: 20px 0; }
-input { padding: 10px; margin: 5px; width: 200px; }
-#output { background: #000; color: #0f0; padding: 15px; height: 300px; overflow-y: auto; font-family: monospace; margin-top: 20px; }
+body { 
+    font-family: Arial, sans-serif; 
+    padding: 20px; 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    margin: 0;
+}
+.container { 
+    max-width: 900px; 
+    margin: 0 auto; 
+    background: white; 
+    padding: 30px; 
+    border-radius: 15px; 
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2); 
+}
+h1 { 
+    color: #333; 
+    text-align: center; 
+    margin-bottom: 10px;
+    font-size: 28px;
+}
+.subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+#status { 
+    padding: 15px; 
+    margin: 20px 0; 
+    border-radius: 8px; 
+    text-align: center;
+    font-weight: bold;
+}
+#status.connected { 
+    background: #d4edda; 
+    color: #155724; 
+    border: 1px solid #c3e6cb;
+}
+#status.disconnected { 
+    background: #f8d7da; 
+    color: #721c24; 
+    border: 1px solid #f5c6cb;
+}
+#status.connecting { 
+    background: #fff3cd; 
+    color: #856404; 
+    border: 1px solid #ffeaa7;
+}
+.btn-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); 
+    gap: 12px; 
+    margin: 20px 0; 
+}
+button { 
+    padding: 15px; 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white; 
+    border: none; 
+    border-radius: 8px; 
+    cursor: pointer; 
+    font-size: 14px; 
+    font-weight: bold;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+button:hover { 
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+}
+button:active {
+    transform: translateY(0);
+}
+button.danger { 
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+button.danger:hover { 
+    background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+}
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+.input-group { 
+    margin: 20px 0;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+input { 
+    padding: 12px; 
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    flex: 1;
+    min-width: 200px;
+    transition: border-color 0.3s;
+}
+input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+#output { 
+    background: #1e1e1e; 
+    color: #00ff00; 
+    padding: 20px; 
+    height: 350px; 
+    overflow-y: auto; 
+    font-family: 'Courier New', monospace; 
+    margin-top: 20px; 
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+}
+#output p {
+    margin: 4px 0;
+}
+.time {
+    color: #888;
+}
+.error {
+    color: #ff6b6b !important;
+}
+.success {
+    color: #51cf66 !important;
+}
+.info {
+    color: #4dabf7 !important;
+}
+#output img {
+    max-width: 100%;
+    border: 2px solid #00ff00;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+.loading {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
 </style>
 </head>
 <body>
 <div class="container">
-<h1>Remote Control Panel</h1>
-<div id="status">Status: <span id="statusText">Connecting...</span></div>
+<h1>🖥️ Remote Control Panel</h1>
+<div class="subtitle">WebSocket Architecture (Gateway + C++ Server)</div>
+
+<div id="status" class="disconnected">
+    Status: <span id="statusText">Disconnected</span>
+</div>
+
 <div class="btn-grid">
-<button onclick="sendCmd(1)">List Apps</button>
-<button onclick="sendCmd(4)">List Process</button>
-<button onclick="sendCmd(6)">Screenshot</button>
-<button onclick="sendCmd(7)">Start Keylogger</button>
-<button onclick="sendCmd(8)">Stop Keylogger</button>
-<button onclick="sendCmd(9)">Get Keylog</button>
-<button onclick="sendCmd(10)">Webcam On</button>
-<button onclick="sendCmd(11)">Webcam Off</button>
-<button class="danger" onclick="if(confirm('Shutdown?')) sendCmd(12)">Shutdown</button>
-<button class="danger" onclick="if(confirm('Restart?')) sendCmd(13)">Restart</button>
+<button onclick="sendCmd(1)">📱 List Apps</button>
+<button onclick="sendCmd(4)">⚙️ List Process</button>
+<button onclick="sendCmd(6)">📸 Screenshot</button>
+<button onclick="sendCmd(7)">⌨️ Start Keylogger</button>
+<button onclick="sendCmd(8)">🛑 Stop Keylogger</button>
+<button onclick="sendCmd(9)">📋 Get Keylog</button>
+<button onclick="sendCmd(10)">📹 Webcam On</button>
+<button onclick="sendCmd(11)">📹 Webcam Off</button>
+<button class="danger" onclick="if(confirm('Shutdown remote computer?')) sendCmd(12)">🔴 Shutdown</button>
+<button class="danger" onclick="if(confirm('Restart remote computer?')) sendCmd(13)">🔄 Restart</button>
 </div>
+
 <div class="input-group">
-<input type="text" id="appName" placeholder="App name">
-<button onclick="stopApp()">Stop App</button>
-<button onclick="startApp()">Start App</button>
+<input type="text" id="appName" placeholder="Application name (e.g., notepad)">
+<button onclick="stopApp()">❌ Stop App</button>
+<button onclick="startApp()">▶️ Start App</button>
 </div>
+
 <div class="input-group">
-<input type="text" id="pid" placeholder="Process ID">
-<button onclick="killProc()">Kill Process</button>
+<input type="text" id="pid" placeholder="Process ID (e.g., 1234)">
+<button onclick="killProc()">💀 Kill Process</button>
 </div>
-<div id="output">Output will appear here...</div>
+
+<div id="output">
+<p class="info">🔌 Connecting to WebSocket Gateway...</p>
 </div>
+</div>
+
 <script>
-function addOutput(text, isHtml = false) {
-  var output = document.getElementById('output');
-  var time = new Date().toLocaleTimeString();
-  if (isHtml) {
-    output.innerHTML += '[' + time + '] ' + text + '<br>';
-  } else {
-    var p = document.createElement('p');
-    p.style.margin = 0;
-    p.textContent = '[' + time + '] ' + text;
+let ws = null;
+let isConnected = false;
+let reconnectInterval = null;
+
+// Kết nối WebSocket
+function connectWebSocket() {
+    try {
+        ws = new WebSocket('ws://localhost:8080');
+        
+        ws.onopen = () => {
+            addOutput('✅ Connected to Gateway', 'success');
+            updateStatus('connecting', 'Connecting to C++ Server...');
+            
+            // Yêu cầu Gateway kết nối đến C++ Server
+            ws.send(JSON.stringify({
+                type: 'connect'
+            }));
+            
+            // Clear reconnect interval nếu có
+            if (reconnectInterval) {
+                clearInterval(reconnectInterval);
+                reconnectInterval = null;
+            }
+        };
+        
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                handleServerMessage(data);
+            } catch (err) {
+                addOutput('❌ Error parsing message: ' + err.message, 'error');
+            }
+        };
+        
+        ws.onerror = (error) => {
+            addOutput('❌ WebSocket error', 'error');
+            updateStatus('disconnected', 'Connection error');
+        };
+        
+        ws.onclose = () => {
+            addOutput('🔌 Disconnected from Gateway', 'error');
+            updateStatus('disconnected', 'Disconnected');
+            isConnected = false;
+            
+            // Tự động reconnect sau 3 giây
+            if (!reconnectInterval) {
+                addOutput('🔄 Will reconnect in 3 seconds...', 'info');
+                reconnectInterval = setInterval(() => {
+                    addOutput('🔄 Attempting to reconnect...', 'info');
+                    connectWebSocket();
+                }, 3000);
+            }
+        };
+    } catch (err) {
+        addOutput('❌ Failed to create WebSocket: ' + err.message, 'error');
+    }
+}
+
+// Xử lý message từ server
+function handleServerMessage(data) {
+    if (data.type === 'status') {
+        if (data.connected) {
+            updateStatus('connected', 'Connected to C++ Server');
+            isConnected = true;
+            addOutput('✅ ' + data.message, 'success');
+        } else {
+            updateStatus('disconnected', 'Failed to connect to C++ Server');
+            isConnected = false;
+            addOutput('❌ ' + data.message, 'error');
+        }
+    } else if (data.type === 'response') {
+        if (data.isImage) {
+            // Hiển thị ảnh screenshot
+            const imgData = 'data:image/bmp;base64,' + data.data;
+            addOutput('📸 Screenshot received:', 'success');
+            addImageOutput(imgData);
+        } else {
+            // Hiển thị text response
+            addOutput(data.data, 'info');
+        }
+    } else if (data.type === 'error') {
+        addOutput('❌ ' + data.message, 'error');
+    }
+}
+
+// Cập nhật trạng thái
+function updateStatus(status, text) {
+    const statusDiv = document.getElementById('status');
+    const statusText = document.getElementById('statusText');
+    
+    statusDiv.className = status;
+    statusText.textContent = text;
+}
+
+// Thêm output text
+function addOutput(text, type = 'info') {
+    const output = document.getElementById('output');
+    const p = document.createElement('p');
+    const time = new Date().toLocaleTimeString();
+    
+    p.className = type;
+    p.innerHTML = '<span class="time">[' + time + ']</span> ' + escapeHtml(text);
+    
     output.appendChild(p);
-  }
-  output.scrollTop = output.scrollHeight;
+    output.scrollTop = output.scrollHeight;
 }
+
+// Thêm output image
+function addImageOutput(imgSrc) {
+    const output = document.getElementById('output');
+    const img = document.createElement('img');
+    img.src = imgSrc;
+    img.alt = 'Screenshot';
+    output.appendChild(img);
+    output.scrollTop = output.scrollHeight;
+}
+
+// Escape HTML để tránh XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Gửi command
 function sendCmd(cmd, data) {
-  data = data || '';
-  addOutput('Sending command ' + cmd + '...', false);
-  fetch('/cmd', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({cmd: cmd, data: data})
-  })
-  .then(response => {
-    if (!response.ok) {
-      throw new Error('Network response was not ok');
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        addOutput('❌ Not connected to Gateway!', 'error');
+        return;
     }
-    if (cmd === 6) { // CMD_SCREENSHOT = 6
-      addOutput('Received screenshot data (BMP).', false);
-      return response.blob(); // Xử lý như file nhị phân (ảnh)
-    } else {
-      return response.text(); // XửLý như text (cho các lệnh khác)
+    
+    if (!isConnected) {
+        addOutput('❌ Gateway not connected to C++ Server!', 'error');
+        return;
     }
-  })
-  .then(result => {
-    if (cmd === 6) {
-      var imgUrl = URL.createObjectURL(result);
-      var imgTag = '<img src="' + imgUrl + '" style="max-width: 100%;" alt="Screenshot">';
-      addOutput('Screenshot:', true);
-      addOutput(imgTag, true);
-    } else {
-      addOutput(result, false);
-    }
-  })
-  .catch(err => {
-    addOutput('Error: ' + err.message, false);
-  });
+    
+    data = data || '';
+    addOutput('📤 Sending command ' + cmd + '...', 'info');
+    
+    ws.send(JSON.stringify({
+        type: 'command',
+        cmd: cmd,
+        data: data
+    }));
 }
+
+// Stop app
 function stopApp() {
-  var name = document.getElementById('appName').value;
-  if(name) sendCmd(2, name);
+    const name = document.getElementById('appName').value;
+    if (name) {
+        sendCmd(2, name);
+    } else {
+        addOutput('⚠️ Please enter application name', 'error');
+    }
 }
+
+// Start app
 function startApp() {
-  var name = document.getElementById('appName').value;
-  if(name) sendCmd(3, name);
+    const name = document.getElementById('appName').value;
+    if (name) {
+        sendCmd(3, name);
+    } else {
+        addOutput('⚠️ Please enter application path', 'error');
+    }
 }
+
+// Kill process
 function killProc() {
-  var pid = document.getElementById('pid').value;
-  if(pid) sendCmd(5, pid);
+    const pid = document.getElementById('pid').value;
+    if (pid) {
+        sendCmd(5, pid);
+    } else {
+        addOutput('⚠️ Please enter process ID', 'error');
+    }
 }
-setInterval(function() {
-  fetch('/status').then(r => r.json()).then(r => {
-    document.getElementById('statusText').textContent = r.connected ? 'Connected' : 'Disconnected';
-  });
-}, 2000);
+
+// Kiểm tra trạng thái định kỳ
+setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'status_check'
+        }));
+    }
+}, 5000);
+
+// Kết nối khi trang load
+window.onload = () => {
+    connectWebSocket();
+};
+
+// Đóng kết nối khi tắt trang
+window.onbeforeunload = () => {
+    if (ws) {
+        ws.close();
+    }
+};
 </script>
 </body>
 </html>
