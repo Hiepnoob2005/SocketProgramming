@@ -1,0 +1,27 @@
+{
+  "name": "remote-control-gateway",
+  "version": "1.0.0",
+  "description": "WebSocket Gateway for Remote Control System",
+  "main": "gateway.js",
+  "scripts": {
+    "start": "node gateway.js",
+    "dev": "nodemon gateway.js"
+  },
+  "keywords": [
+    "websocket",
+    "gateway",
+    "remote-control",
+    "socket-programming"
+  ],
+  "author": "Hieu",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
