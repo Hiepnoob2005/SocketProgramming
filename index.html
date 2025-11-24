@@ -273,7 +273,9 @@ function handleServerMessage(data) {
             addImageOutput(imgData);
         } else {
             // Hiển thị text response
-            addOutput(data.data, 'info');
+          //  if (data.data && data.data !== 'undefined' && data.data.toString().trim() !== '') {
+                addOutput(data.data, 'info');
+          //  }
         }
     } else if (data.type === 'error') {
         addOutput('❌ ' + data.message, 'error');

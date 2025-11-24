@@ -6,7 +6,7 @@ const path = require('path');
 
 // Configuration
 const WEB_PORT = 8080;        // Port cho Web Client kết nối
-const SERVER_HOST = '127.0.0.1'; // IP của C++ Server
+const SERVER_HOST = '192.168.1.17'; // IP của C++ Server (Ip máy ảo)
 const SERVER_PORT = 8888;     // Port của C++ Server
 
 // Tạo HTTP server để serve HTML
