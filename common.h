@@ -10,8 +10,12 @@
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <algorithm>  // Cho std::min
 
 #ifdef _WIN32
+    #ifndef NOMINMAX
+    #define NOMINMAX          // Ngăn Windows định nghĩa min/max macro
+    #endif 
     #include <winsock2.h>
     #undef UNICODE
     #include <windows.h>
@@ -55,6 +59,7 @@ enum Commands {
     CMD_WEBCAM_OFF = 11,
     CMD_SHUTDOWN = 12,
     CMD_RESTART = 13,
+    CMD_WEBCAM_CAPTURE = 14,  // NEW: Capture webcam for N seconds
     CMD_EXIT = 99
 };
 
@@ -115,7 +120,7 @@ inline void initWinsock() {}
 inline void cleanupWinsock() {}
 #endif
 
-// Send packet function
+// Send packet function - HỖ TRỢ GỬI DỮ LIỆU LỚN
 inline bool sendPacket(SOCKET_TYPE socket, const Packet& packet) {
     // Send packet header (command and size)
     int header[2] = {packet.command, packet.dataSize};
@@ -123,17 +128,23 @@ inline bool sendPacket(SOCKET_TYPE socket, const Packet& packet) {
         return false;
     }
     
-    // Send data if exists
+    // Send data if exists - GỬI TỪNG PHẦN NẾU DỮ LIỆU LỚN
     if (packet.dataSize > 0) {
-        if (send(socket, packet.data, packet.dataSize, 0) == -1) {
-            return false;
+        int totalSent = 0;
+        while (totalSent < packet.dataSize) {
+            int chunkSize = std::min(4096, packet.dataSize - totalSent);
+            int sent = send(socket, packet.data + totalSent, chunkSize, 0);
+            if (sent == -1) {
+                return false;
+            }
+            totalSent += sent;
         }
     }
     
     return true;
 }
 
-// Receive packet function
+// Receive packet function - HỖ TRỢ NHẬN DỮ LIỆU LỚN
 inline bool receivePacket(SOCKET_TYPE socket, Packet& packet) {
     // Receive header
     int header[2];
@@ -145,14 +156,55 @@ inline bool receivePacket(SOCKET_TYPE socket, Packet& packet) {
     packet.command = header[0];
     packet.dataSize = header[1];
     
-    // Receive data if exists
+    // Receive data if exists - NHẬN TỪNG PHẦN NẾU DỮ LIỆU LỚN
     if (packet.dataSize > 0) {
-        bytesReceived = recv(socket, packet.data, packet.dataSize, 0);
-        if (bytesReceived <= 0) {
-            return false;
+        int totalReceived = 0;
+        while (totalReceived < packet.dataSize) {
+            int chunkSize = std::min(4096, packet.dataSize - totalReceived);
+            bytesReceived = recv(socket, packet.data + totalReceived, chunkSize, 0);
+            if (bytesReceived <= 0) {
+                return false;
+            }
+            totalReceived += bytesReceived;
         }
     }
     
+    return true;
+}
+
+// ============ HÀM GỬI FILE LỚN (VIDEO) ============
+// Gửi file lớn qua socket (chia thành nhiều packet)
+inline bool sendLargeFile(SOCKET_TYPE socket, int command, const std::string& filePath) {
+    std::ifstream file(filePath, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        return false;
+    }
+    
+    std::streamsize fileSize = file.tellg();
+    file.seekg(0, std::ios::beg);
+    
+    // Gửi header: command + total file size
+    int header[2] = {command, (int)fileSize};
+    if (send(socket, (char*)header, sizeof(header), 0) == -1) {
+        file.close();
+        return false;
+    }
+    
+    // Gửi data theo chunks
+    char buffer[8192];
+    int totalSent = 0;
+    while (file.read(buffer, sizeof(buffer)) || file.gcount() > 0) {
+        int bytesToSend = (int)file.gcount();
+        int sent = send(socket, buffer, bytesToSend, 0);
+        if (sent == -1) {
+            file.close();
+            return false;
+        }
+        totalSent += sent;
+    }
+    
+    file.close();
+    std::cout << "[Server] Sent file: " << filePath << " (" << totalSent << " bytes)" << std::endl;
     return true;
 }
 

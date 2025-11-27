@@ -6,8 +6,27 @@ const path = require('path');
 
 // Configuration
 const WEB_PORT = 8080;        // Port cho Web Client kết nối
-const SERVER_HOST = '192.168.1.17'; // IP của C++ Server (Ip máy ảo)
+const SERVER_HOST = '192.168.1.16'; // IP của C++ Server (thay đổi nếu cần)
 const SERVER_PORT = 8888;     // Port của C++ Server
+
+// Command codes (phải khớp với common.h)
+const CMD = {
+    LIST_APPS: 1,
+    STOP_APP: 2,
+    START_APP: 3,
+    LIST_PROCESS: 4,
+    KILL_PROCESS: 5,
+    SCREENSHOT: 6,
+    KEYLOG_START: 7,
+    KEYLOG_STOP: 8,
+    KEYLOG_GET: 9,
+    WEBCAM_ON: 10,
+    WEBCAM_OFF: 11,
+    SHUTDOWN: 12,
+    RESTART: 13,
+    WEBCAM_CAPTURE: 14,  // NEW
+    EXIT: 99
+};
 
 // Tạo HTTP server để serve HTML
 const httpServer = http.createServer((req, res) => {
@@ -31,7 +50,7 @@ const httpServer = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server: httpServer });
 
 console.log('='.repeat(50));
-console.log('  WebSocket Gateway Started');
+console.log('  WebSocket Gateway v2.0 (with Webcam Support)');
 console.log('='.repeat(50));
 console.log(`Web Client port: ${WEB_PORT}`);
 console.log(`C++ Server: ${SERVER_HOST}:${SERVER_PORT}`);
@@ -113,11 +132,11 @@ wss.on('connection', (ws) => {
                 
                 sendCommandToCpp(cppSocket, data.cmd, data.data || '');
             } else if (data.type === 'status_check') {
-                // Kiểm tra trạng thái kết nối
-                ws.send(JSON.stringify({
-                    type: 'status',
-                    connected: isConnectedToCpp
-                }));
+                //  Kiểm tra trạng thái kết nối
+                // ws.send(JSON.stringify({
+                //     type: 'status',
+                //     connected: isConnectedToCpp
+                // }));
             }
         } catch (err) {
             console.error('[Gateway] Error processing message:', err);
@@ -160,7 +179,7 @@ function sendCommandToCpp(socket, command, data) {
             socket.write(dataBuffer);
         }
         
-        console.log(`[Gateway] Sent command ${command} to C++ Server`);
+        console.log(`[Gateway] Sent command ${command} to C++ Server (data: "${data}")`);
     } catch (err) {
         console.error('[Gateway] Error sending command:', err);
     }
@@ -187,12 +206,15 @@ function handleCppResponse(ws, buffer) {
             expectedDataSize = responseBuffer.readInt32LE(4);
             responseBuffer = responseBuffer.slice(8);
             headerReceived = true;
+            
+            console.log(`[Gateway] Receiving command ${expectedCommand}, size: ${expectedDataSize} bytes`);
         }
         
         // Đọc data
         if (headerReceived) {
             if (responseBuffer.length < expectedDataSize) {
                 // Chưa đủ dữ liệu
+                console.log(`[Gateway] Waiting for more data: ${responseBuffer.length}/${expectedDataSize}`);
                 break;
             }
             
@@ -200,25 +222,41 @@ function handleCppResponse(ws, buffer) {
             responseBuffer = responseBuffer.slice(expectedDataSize);
             
             // Xử lý theo loại command
-            if (expectedCommand === 6) { // CMD_SCREENSHOT
+            let responseData = {
+                type: 'response',
+                command: expectedCommand,
+                isImage: false,
+                isVideo: false,
+                data: ''
+            };
+            
+            if (expectedCommand === CMD.SCREENSHOT) {
                 // Gửi binary data (ảnh BMP)
-                ws.send(JSON.stringify({
-                    type: 'response',
-                    command: expectedCommand,
-                    isImage: true,
-                    data: dataBuffer.toString('base64')
-                }));
+                responseData.isImage = true;
+                responseData.data = dataBuffer.toString('base64');
+                console.log(`[Gateway] Screenshot received: ${expectedDataSize} bytes`);
+                
+            } else if (expectedCommand === CMD.WEBCAM_CAPTURE) {
+                // Kiểm tra xem có phải video data hay error message
+                const textCheck = dataBuffer.toString('utf8', 0, Math.min(50, dataBuffer.length));
+                
+                if (textCheck.startsWith('Failed') || textCheck.startsWith('Invalid') || textCheck.startsWith('VIDEO_TOO_LARGE')) {
+                    // Error message
+                    responseData.data = dataBuffer.toString('utf8');
+                    console.log(`[Gateway] Webcam capture error: ${responseData.data}`);
+                } else {
+                    // Video data
+                    responseData.isVideo = true;
+                    responseData.data = dataBuffer.toString('base64');
+                    console.log(`[Gateway] Video received: ${expectedDataSize} bytes`);
+                }
+                
             } else {
                 // Gửi text data
-                const textData = dataBuffer.toString('utf8');
-                ws.send(JSON.stringify({
-                    type: 'response',
-                    command: expectedCommand,
-                    isImage: false,
-                    data: textData
-                }));
+                responseData.data = dataBuffer.toString('utf8');
             }
             
+            ws.send(JSON.stringify(responseData));
             console.log(`[Gateway] Sent response for command ${expectedCommand} to Web Client`);
             
             // Reset
