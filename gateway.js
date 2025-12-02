@@ -6,7 +6,7 @@ const path = require('path');
 
 // Configuration
 const WEB_PORT = 8080;        // Port cho Web Client kết nối
-const SERVER_HOST = '192.168.1.15'; // IP của C++ Server (thay đổi nếu cần)
+const SERVER_HOST = '10.211.55.4'; // IP của C++ Server (thay đổi nếu cần)
 const SERVER_PORT = 8888;     // Port của C++ Server
 
 // Command codes (phải khớp với common.h)
@@ -66,7 +66,19 @@ function connectToCppServer() {
     return new Promise((resolve, reject) => {
         const socket = new net.Socket();
         
-        socket.connect(SERVER_PORT, SERVER_HOST, () => {
+    const connectOptions = {
+        port: SERVER_PORT,
+        host: SERVER_HOST,
+        family: 4, // Giữ cái này: Ép dùng IPv4 để tránh nó thử IPv6 gây delay/lỗi
+    };
+
+    // // Thêm timeout để không bị treo nếu server C++ đơ
+    // socket.setTimeout(5000); 
+    // socket.on('timeout', () => {
+    //     console.log('[Gateway] Connection timed out');
+    //     socket.destroy();
+    // });
+        socket.connect(connectOptions, () => {
             console.log('[Gateway] Connected to C++ Server');
             isConnectedToCpp = true;
             resolve(socket);
@@ -252,9 +264,22 @@ function handleCppResponse(ws, buffer) {
                 }
                 
             } else {
-                // Gửi text data
-                responseData.data = dataBuffer.toString('utf8');
-            }
+                // --- BẮT ĐẦU ĐOẠN SỬA ---
+                
+                // Bước 1: Tạo biến textData từ buffer (QUAN TRỌNG: Phải có dòng này trước)
+                const textData = dataBuffer.toString('utf8');
+
+                // Bước 2: In ra Terminal để kiểm tra
+                console.log('===================================');
+                console.log('--- [DEBUG] DỮ LIỆU TỪ C++ GỬI VỀ ---');
+                console.log(textData);
+                console.log('===================================');
+
+                // Bước 3: Gán dữ liệu vào gói tin trả về Web
+                responseData.data = textData;
+                
+                // --- KẾT THÚC ĐOẠN SỬA ---            
+                }
             
             ws.send(JSON.stringify(responseData));
             console.log(`[Gateway] Sent response for command ${expectedCommand} to Web Client`);
