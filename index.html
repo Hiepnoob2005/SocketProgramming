@@ -355,7 +355,7 @@ function handleServerMessage(data) {
             addImageOutput('data:image/bmp;base64,' + data.data);
         } else if (data.isVideo && data.data) {
             // Hiển thị video
-            addOutput('🎬 Video received:', 'success');
+            addOutput('🎬 Video received successfully!', 'success');
             addVideoOutput('data:video/avi;base64,' + data.data);
         } else if (data.data && data.data.trim && data.data.trim() !== '') {
             // Hiển thị text response
@@ -518,6 +518,18 @@ function killProc() {
 function captureWebcam() {
     addOutput('📷 Capturing webcam photo... Please wait.', 'info');
     sendCmd(CMD.WEBCAM_CAPTURE, '1');  // Chụp 1 ảnh
+}
+
+// Start webcam
+function startRecording() {
+    addOutput('🎥 Starting webcam recording...', 'info');
+    sendCmd(CMD.WEBCAM_ON); // Gửi lệnh 10
+}
+
+// Stop webcam
+function stopRecording() {
+    addOutput('⏹️ Stopping recording... Waiting for video file...', 'info');
+    sendCmd(CMD.WEBCAM_OFF); // Gửi lệnh 11
 }
 
 // Kiểm tra trạng thái định kỳ

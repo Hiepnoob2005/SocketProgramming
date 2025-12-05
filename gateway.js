@@ -261,8 +261,53 @@ function handleCppResponse(ws, buffer) {
                     responseData.isVideo = true;
                     responseData.data = dataBuffer.toString('base64');
                     console.log(`[Gateway] Video received: ${expectedDataSize} bytes`);
+                }    
+            } else if (expectedCommand === CMD.WEBCAM_OFF) { 
+                const textMsg = dataBuffer.toString('utf8');
+                // Kiểm tra xem message có chứa keyword không
+                if (textMsg.startsWith("VIDEO_SAVED_LOCAL")) {
+                    console.log('[Gateway] Server finished recording. Processing...');
+
+                    // --- LOGIC MỚI: TÁCH TÊN FILE ---
+                    // Message dạng: "VIDEO_SAVED_LOCAL|filename.avi|duration"
+                    const parts = textMsg.split('|');
+                    let serverFileName = "video_temp.avi"; // Fallback nếu không có tên
+                    let duration = "0";
+                    if (parts.length > 1) {
+                        serverFileName = parts[1].trim(); // Lấy tên file thực tế: rec_xxxx.avi
+                    }
+                    if (parts.length > 2) {
+                        duration = parts[2].trim();
+                    }
+                    const sourcePath = path.join(__dirname, serverFileName);
+                    
+                    // Tên file mới để Client tải về (giữ nguyên logic timestamp của Nodejs cũng được)
+                    // Hoặc dùng chính tên C++ gửi sang
+                    const destFileName = serverFileName; 
+                    const destPath = path.join(VIDEO_DIR, destFileName);
+
+                    if (fs.existsSync(sourcePath)) {
+                        try {
+                            // Di chuyển file vào thư mục videos
+                            fs.renameSync(sourcePath, destPath); // rename nhanh hơn copy+unlink
+
+                            console.log(`[Gateway] Moved ${serverFileName} to ${destPath}`);
+
+                            responseData.isVideo = true;
+                            responseData.videoUrl = `/videos/${destFileName}`;
+                            responseData.duration = duration;
+                            responseData.data = "Video ready";
+                        } catch (err) {
+                            console.error('[Gateway] Error moving file:', err);
+                            responseData.data = "Error processing video file.";
+                        }
+                    } else {
+                        console.error(`[Gateway] File not found: ${sourcePath}`);
+                        responseData.data = `Error: File ${serverFileName} not found on server.`;
+                    }
+                } else {
+                    responseData.data = textMsg;
                 }
-                
             } else {
                 // --- BẮT ĐẦU ĐOẠN SỬA ---
                 

