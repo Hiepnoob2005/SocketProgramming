@@ -11,7 +11,7 @@ if (!fs.existsSync(VIDEO_DIR)) {
 
 // Configuration
 const WEB_PORT = 8080;        // Port cho Web Client kết nối
-const SERVER_HOST = '192.168.10.18'; // IP của C++ Server (thay đổi nếu cần)
+const SERVER_HOST = '192.168.11.4'; // IP của C++ Server (thay đổi nếu cần)
 const SERVER_PORT = 8888;     // Port của C++ Server
 
 // Command codes (phải khớp với common.h)

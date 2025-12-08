@@ -437,53 +437,59 @@ public:
 
             
             #ifdef _WIN32
-            // Tạo cửa sổ capture
-            hWebcamWnd = capCreateCaptureWindowA("WebcamCapture", WS_POPUP, 0, 0, 320, 240, GetDesktopWindow(), 0);
+            // 1. THAY ĐỔI: Thêm WS_VISIBLE để cửa sổ hiện lên ngay lập tức
+            hWebcamWnd = capCreateCaptureWindowA("WebcamCapture", WS_POPUP | WS_VISIBLE, 0, 0, 320, 240, GetDesktopWindow(), 0);
             
             if (hWebcamWnd) {
                 if (capDriverConnect(hWebcamWnd, 0)) {
                     
+                    // 2. THAY ĐỔI: Bật chế độ xem trước (Preview)
+                    // Nếu không có đoạn này, cửa sổ hiện lên sẽ chỉ là màu xám đen
+                    capPreviewScale(hWebcamWnd, TRUE);  // Co giãn hình ảnh cho vừa khung cửa sổ
+                    capPreviewRate(hWebcamWnd, 66);     // Tốc độ cập nhật hình ảnh (66ms ~ 15 FPS)
+                    capPreview(hWebcamWnd, TRUE);       // Kích hoạt chế độ Preview
+                    
                     CAPTUREPARMS CaptureParms; 
                     capCaptureGetSetup(hWebcamWnd, &CaptureParms, sizeof(CAPTUREPARMS));
                     
-                    // --- CẤU HÌNH QUAN TRỌNG ---
-                    CaptureParms.fYield = TRUE;                   // Bắt buộc TRUE để xử lý Loop bên dưới
+                    // --- CÁC CẤU HÌNH CŨ GIỮ NGUYÊN ---
+                    CaptureParms.fYield = TRUE;
                     CaptureParms.fAbortLeftMouse = FALSE;
                     CaptureParms.fAbortRightMouse = FALSE;
-                    CaptureParms.fLimitEnabled = FALSE;           // Tắt giới hạn thời gian
-                    CaptureParms.fMakeUserHitOKToCapture = FALSE; // Không chờ bấm OK
+                    CaptureParms.fLimitEnabled = FALSE;
+                    CaptureParms.fMakeUserHitOKToCapture = FALSE;
                     CaptureParms.fCaptureAudio = FALSE;
                     CaptureParms.dwRequestMicroSecPerFrame = (1000000 / 15); // 15 FPS
+                    
+                    // Set định dạng (giữ nguyên)
                     BITMAPINFOHEADER bih;
                     memset(&bih, 0, sizeof(bih));
                     bih.biSize = sizeof(bih);
-                    bih.biWidth = 160;  // Chiều rộng nhỏ
-                    bih.biHeight = 120; // Chiều cao nhỏ
+                    bih.biWidth = 160;
+                    bih.biHeight = 120;
                     bih.biPlanes = 1;
                     bih.biBitCount = 24;
                     bih.biCompression = BI_RGB;
                     capSetVideoFormat(hWebcamWnd, &bih, sizeof(bih));
+
                     if (capCaptureSetSetup(hWebcamWnd, &CaptureParms, sizeof(CAPTUREPARMS))) {
                         capFileSetCaptureFile(hWebcamWnd, (char*)filename.c_str());
                         recordingStartTime = time(0);
-                        // Bắt đầu quay (Non-blocking vì Yield=TRUE)
+                        
+                        // Bắt đầu quay
                         if (capCaptureSequence(hWebcamWnd)) {
                             
-                            // === VÒNG LẶP KEEP-ALIVE (FIX LỖI TỰ TẮT) ===
-                            // Giữ thread này sống cho đến khi bấm Stop (webcamActive = false)
+                            // Giữ thread sống (Keep-Alive Loop)
                             MSG msg;
                             while (webcamActive) {
-                                // Xử lý tin nhắn Windows để cửa sổ capture không bị treo
                                 if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
                                     TranslateMessage(&msg);
                                     DispatchMessage(&msg);
                                 }
-                                // Nghỉ nhẹ để giảm tải CPU
                                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
                             }
-                            // ============================================
 
-                            // Khi vòng lặp kết thúc (do bấm Stop), gửi lệnh dừng
+                            // Dừng quay khi webcamActive = false
                             capCaptureStop(hWebcamWnd);
                         }
                     }
