@@ -21,7 +21,7 @@ CXXFLAGS := -std=c++11 -Wall -Wextra -pthread
 
 # Platform-specific flags
 ifeq ($(DETECTED_OS),Windows)
-    LDFLAGS := -lws2_32 -lpsapi -lgdiplus -lgdi32 -static-libgcc -static-libstdc++ -static
+    LDFLAGS := -lws2_32 -luser32 -lpsapi -lgdiplus -lgdi32 -lvfw32 -static-libgcc -static-libstdc++ -static
 else
     LDFLAGS := -pthread
     # Add X11 for Linux screenshot support

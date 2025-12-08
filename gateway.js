@@ -6,7 +6,7 @@ const path = require('path');
 
 // Configuration
 const WEB_PORT = 8080;        // Port cho Web Client kết nối
-const SERVER_HOST = '10.211.55.4'; // IP của C++ Server (thay đổi nếu cần)
+const SERVER_HOST = '192.168.1.196'; // IP của C++ Server (thay đổi nếu cần)
 const SERVER_PORT = 8888;     // Port của C++ Server
 
 // Command codes (phải khớp với common.h)

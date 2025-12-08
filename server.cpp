@@ -212,16 +212,34 @@ public:
         sendTextResponse(CMD_LIST_APPS, appList);
     }
     
-    // Function 2: Stop an application
+// Function 2: Stop an application (Đã Fix lỗi Logic đuôi .exe)
     void handleStopApp(const char* appName) {
         string result;
+        string nameStr = string(appName);
+        
 #ifdef _WIN32
-        string cmd = "taskkill /F /IM \"" + string(appName) + ".exe\"";
+        // --- LOGIC FIX MỚI ---
+        // Tự động kiểm tra: Nếu chưa có đuôi .exe thì tự thêm vào
+        // Giúp người dùng nhập "notepad" hay "notepad.exe" đều chạy đúng
+        if (nameStr.length() < 4 || nameStr.substr(nameStr.length() - 4) != ".exe") {
+            nameStr += ".exe";
+        }
+        
+        // Lệnh taskkill giờ sẽ luôn đúng cú pháp
+        string cmd = "taskkill /F /IM \"" + nameStr + "\"";
 #else
         string cmd = "pkill -f \"" + string(appName) + "\"";
 #endif
+        
+        // Thực thi lệnh
         int ret = system(cmd.c_str());
-        result = (ret == 0) ? "Application stopped" : "Failed to stop application";
+        
+        if (ret == 0) {
+            result = "Application stopped: " + nameStr;
+        } else {
+            result = "Failed to stop application: " + nameStr + " (Not found or Access Denied)";
+        }
+        
         sendTextResponse(CMD_STOP_APP, result);
     }
     
