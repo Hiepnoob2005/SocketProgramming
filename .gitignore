@@ -4,4 +4,4 @@
 *.obj
 
 # Bỏ qua file cài đặt của VSCode (nếu có)
-.vscode/
+.vscode/*.avi
