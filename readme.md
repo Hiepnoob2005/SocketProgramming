@@ -51,21 +51,46 @@ Hệ thống hoạt động theo mô hình 3 lớp (3-Tier Architecture):
 
 ---
 
+## ⚡ Cấu hình Mạng (Bắt buộc thực hiện trước)
+
+Để đảm bảo kết nối thông suốt ngay lập tức giữa Gateway và Server mà không bị chặn bởi hệ điều hành, bạn cần **TẮT HOÀN TOÀN TƯỜNG LỬA (FIREWALL)** trên máy chạy Server (nên là máy ảo).
+
+### 1. Trên Windows (Chạy CMD quyền Admin)
+Copy và chạy lệnh sau để tắt firewall cho mọi profile mạng:
+
+```cmd
+netsh advfirewall set allprofiles state off
+```
+### 2. Trên Linux
+Chạy lệnh sau trên terminal:
+```bash
+sudo ufw disable
+```
+**⚠️ Lưu ý:** Sau khi chạy các chức năng xong cần **BẬT TƯỜNG LỬA TRỞ LẠI**.
+### 1. Trên Windows (Chạy CMD quyền Admin)
+Copy và chạy lệnh sau để tắt firewall cho mọi profile mạng:
+
+```cmd
+netsh advfirewall set allprofiles state on
+```
+### 2. Trên Linux
+Chạy lệnh sau trên terminal:
+```bash
+sudo ufw enable
+```
+---
+
 ## 📦 Hướng dẫn Cài đặt & Build
 
 ### 1. Build C++ Server & Console Client
-Dự án đi kèm `Makefile` tự động nhận diện hệ điều hành.
 
-**Trên Windows (sử dụng MinGW/Git Bash):**
+**Trên Windows, tại thư mục SocketProgramming (sử dụng MinGW/Git Bash):**
 ```bash
-# Build toàn bộ (Server, Client Console)
-make all
-
-# Hoặc chỉ build Server
-make server
+# Dùng g++ build file server.exe
+g++ -std=c++11 -pthread server.cpp -o server.exe -lws2_32 -luser32 -lpsapi -lgdiplus -lgdi32 -lvfw32 -static-libgcc -static-libstdc++ -static
 ```
 
-**Trên Linux (sử dụng MinGW/Git Bash):**
+**Trên Linux, tại thư mục SocketProgramming (sử dụng MinGW/Git Bash):**
 ```bash
 # Cài đặt thư viện cần thiết
 make install-deps
@@ -88,12 +113,7 @@ npm install
 
 ### Bước 1: Khởi động C++ Server
 
-Đây là thành phần chạy trên máy cần bị điều khiển.
-```bash
-# Tại Terminal 1
-make run-server
-# Server sẽ lắng nghe tại port 8888
-```
+Mở file `server.exe`. Đây là thành phần chạy trên máy cần bị điều khiển.
 
 ### Bước 2: Khởi động Gateway
 
@@ -108,7 +128,7 @@ Lưu ý: Nếu Server C++ nằm ở máy khác, hãy sửa địa chỉ IP trong
 
 ### Bước 3: Mở bảng điều khiển
 
-Mở trình duyệt (Chrome/Edge/Firefox) và truy cập:
+Mở trình duyệt (Chrome/Edge/Firefox/Safari/...) và truy cập:
 
 http://localhost:8080
 
